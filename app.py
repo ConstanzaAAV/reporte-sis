@@ -6,6 +6,13 @@ from procesar import procesar_pdf
 st.set_page_config(page_title="Reporte SIS → Excel", page_icon="📊", layout="centered")
 
 
+@st.cache_data(show_spinner=False)
+def _procesar(pdf_bytes):
+    # Guarda el resultado en memoria: si haces clic en algo (ej. descargar),
+    # NO vuelve a procesar el PDF; reutiliza lo ya calculado.
+    return procesar_pdf(pdf_bytes)
+
+
 # ---------------- Contraseña ----------------
 def check_password():
     pw_correcta = st.secrets.get("password", None)

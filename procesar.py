@@ -454,6 +454,112 @@ def construir_excel(recs):
     bar(gn, "M26", "Intervenciones (filas) vs Visitas reales", cc_l, cc_v, cc0, cc1, "col", 8, 10, datalabels=True)
     bar(gn, "A58", "Top 20 tipos de evento", eg_l, eg_v, eg0, eg1, "bar", 12, 18)
 
+    # ---- POR TÉCNICO (carga de trabajo) ----
+    by_tec = defaultdict(list)
+    for r in recs:
+        by_tec[r["tecnico"]].append(r)
+    tec_rows = []
+    for t, rr_ in by_tec.items():
+        inter = len(rr_)
+        vis = len(set((x["nombre"], x["fecha_evento"]) for x in rr_))
+        na = len(set(x["nombre"] for x in rr_))
+        tec_rows.append((t, inter, vis, na, round(inter / vis, 2) if vis else 0))
+    tec_rows.sort(key=lambda x: -x[2])   # por visitas reales, desc
+
+    tw = wb.create_sheet("Por técnico")
+    tw["A1"] = "POR TÉCNICO — carga de trabajo" + ((" · " + etiqueta) if etiqueta else "")
+    tw["A1"].font = Font(bold=True, size=15, color="C55A11")
+    headT = ["Técnico", "Intervenciones (filas)", "Visitas reales", "Niños atendidos", "Interv. por visita"]
+    for j, h in enumerate(headT, start=1):
+        c = tw.cell(row=3, column=j, value=h)
+        c.font = BOLDW; c.fill = ORANGE
+        c.alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
+    tw.row_dimensions[3].height = 32
+    for i, (t, inter, vis, na, ratio) in enumerate(tec_rows):
+        rw = 4 + i
+        tw.cell(row=rw, column=1, value=t)
+        tw.cell(row=rw, column=2, value=inter)
+        tw.cell(row=rw, column=3, value=vis)
+        tw.cell(row=rw, column=4, value=na)
+        tw.cell(row=rw, column=5, value=ratio)
+    last_t = 3 + len(tec_rows)
+    tw.column_dimensions["A"].width = 34
+    for col in "BCDE":
+        tw.column_dimensions[col].width = 18
+    tw.freeze_panes = "A4"
+    tw.auto_filter.ref = "A3:E%d" % last_t
+
+    cht = BarChart(); cht.type = "bar"; cht.grouping = "clustered"; cht.varyColors = False
+    cht.title = "Intervenciones vs visitas reales por técnico"
+    cht.height = 0.9 * len(tec_rows) + 4; cht.width = 20
+    cht.add_data(Reference(tw, min_col=2, max_col=3, min_row=3, max_row=last_t), titles_from_data=True)
+    cht.set_categories(Reference(tw, min_col=1, min_row=4, max_row=last_t))
+    cht.x_axis.delete = False; cht.y_axis.delete = False
+    tw.add_chart(cht, "G3")
+
+    # ---- GLOSARIO (primera hoja, "léeme") ----
+    glos = [
+        ("H", "QUÉ ES ESTE ARCHIVO", ""),
+        ("T", "Resumen del mes", "Convierte el Reporte SIS (Plan de Intervención · Mejor Niñez) de un mes en datos ordenados y gráficos. Sirve para ver cuánto y cómo se atendió a cada niño, niña o adolescente."),
+        ("H", "CONCEPTOS CLAVE", ""),
+        ("T", "Registro (o intervención)", "Cada fila de la hoja 'Eventos'. Es una acción anotada en el sistema (una coordinación, una visita, una sesión, un informe, etc.). Una misma atención puede generar VARIOS registros."),
+        ("T", "Visita REAL", "Un contacto/atención efectiva. Se define como la combinación única NIÑO + FECHA + TÉCNICO. Si un mismo profesional anota 5 cosas el mismo día para el mismo niño = 1 visita real. Si dos profesionales distintos lo atienden el mismo día = 2 visitas reales."),
+        ("T", "¿Por qué dos números (registros y visitas)?", "El sistema permite anotar una sola visita en varias intervenciones. Contar registros INFLA la cantidad real de atenciones; las 'visitas reales' muestran cuántas veces se atendió de verdad."),
+        ("T", "Interv. por visita", "Promedio de registros por visita real (Intervenciones ÷ Visitas reales). Cerca de 1 = poco subdividido; mientras más alto, más se anotó cada visita en muchos registros."),
+        ("H", "LAS HOJAS DE ESTE EXCEL", ""),
+        ("T", "Glosario", "Esta hoja: explica qué significa cada cosa."),
+        ("T", "Eventos", "Todos los registros del mes, uno por fila (datos limpios y ordenados, con filtros activados arriba)."),
+        ("T", "Resumen por niño", "Una fila por niño/a con sus totales: intervenciones, visitas reales, promedio, y cuántas de cada tipo de intervención."),
+        ("T", "Panel", "Tablero interactivo: elige un niño en la lista desplegable (celda amarilla) y se actualizan sus gráficos (actividad por día, tipos de intervención y de evento)."),
+        ("T", "General", "Vista de todo el programa: recuadro con preguntas clave, gráfico de tipos de trabajo (torta), ranking de niños por visitas reales y tipos de evento más frecuentes."),
+        ("T", "Por técnico", "Carga de trabajo de cada profesional: cuántas intervenciones (registros) y cuántas visitas reales hizo, cuántos niños atendió y su promedio."),
+        ("H", "COLUMNAS DE LA HOJA 'EVENTOS'", ""),
+        ("T", "Página", "Página del PDF original donde empieza ese registro (para poder ubicarlo)."),
+        ("T", "Nombre", "Niño, niña o adolescente atendido (apellidos + nombres)."),
+        ("T", "Tipo Intervención", "Categoría general del trabajo: Psicosocial, Complementaria de Redes, Apoyo Jurídico, Competencias Parentales, etc."),
+        ("T", "Fecha Evento", "Fecha en que ocurrió la acción (día-mes-año)."),
+        ("T", "Tipo Evento", "Detalle específico de la acción: visita domiciliaria, sesión individual, coordinación con redes, elaboración de informe, etc."),
+        ("T", "Descripción Evento", "Texto completo de lo que se hizo / se registró."),
+        ("T", "Técnico", "Profesional que realizó y registró la acción."),
+        ("T", "Revisar", "Marca 'REVISAR' (fila amarilla) en registros que parecen repetidos: misma descripción y técnico pero distinto Tipo Evento. Conviene revisarlos a ojo."),
+        ("H", "CÓMO SE CALCULAN LOS NÚMEROS", ""),
+        ("T", "Conteo por tipo (ej. Psicosocial = 9)", "Cuenta cuántas FILAS de ese niño tienen ese Tipo Intervención. Es por REGISTRO, no por visita real: 9 registros pueden corresponder a menos visitas (si varios fueron el mismo día y técnico)."),
+        ("T", "Visitas reales", "Cantidad de combinaciones únicas NIÑO + FECHA + TÉCNICO."),
+        ("T", "(sin tipo)", "Registros que en el PDF venían sin Tipo Intervención (el campo estaba vacío)."),
+        ("T", "Duplicados", "El reporte a veces reimprime un registro al cambiar de página; esas copias exactas se eliminan automáticamente."),
+        ("H", "NOTAS IMPORTANTES", ""),
+        ("T", "Datos sensibles", "Contiene información de menores. Guárdalo en un lugar seguro y no lo compartas por canales abiertos."),
+        ("T", "Ábrelo en Microsoft Excel", "Para ver bien los gráficos y el panel interactivo, ábrelo en Excel (en otros visores pueden verse distintos)."),
+        ("T", "Período", "Este archivo corresponde a un mes. Para otro mes, genera uno nuevo con la herramienta."),
+    ]
+    gl = wb.create_sheet("Glosario")
+    gl.sheet_view.showGridLines = False
+    gl.column_dimensions["A"].width = 32
+    gl.column_dimensions["B"].width = 98
+    gl.merge_cells("A1:B1")
+    gl["A1"] = "📘 GLOSARIO — Cómo leer este archivo"
+    gl["A1"].font = Font(bold=True, size=16, color="C55A11")
+    grow = 3
+    for kind, term, dfn in glos:
+        if kind == "H":
+            gl.merge_cells("A%d:B%d" % (grow, grow))
+            c = gl.cell(row=grow, column=1, value=term)
+            c.font = Font(bold=True, color="FFFFFF"); c.fill = ORANGE
+            c.alignment = Alignment(vertical="center")
+            gl.row_dimensions[grow].height = 20
+        else:
+            t = gl.cell(row=grow, column=1, value=term)
+            t.font = Font(bold=True, size=10); t.alignment = Alignment(wrap_text=True, vertical="top")
+            d = gl.cell(row=grow, column=2, value=dfn)
+            d.font = Font(size=10); d.alignment = Alignment(wrap_text=True, vertical="top")
+            lines = (len(dfn) + 95) // 96
+            gl.row_dimensions[grow].height = 15 * max(1, lines) + 3
+        grow += 1
+    # mover Glosario al frente y dejarlo como hoja activa
+    wb._sheets.remove(gl)
+    wb._sheets.insert(0, gl)
+    wb.active = 0
+
     wb.calculation.fullCalcOnLoad = True
     buf = io.BytesIO()
     wb.save(buf)
