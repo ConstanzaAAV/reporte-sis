@@ -1,0 +1,16 @@
+# ⚠️ DATOS SENSIBLES — NUNCA subir al repositorio
+*.pdf
+*.xlsx
+*.xls
+*.json
+*.csv
+
+# Contraseña / secretos
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
