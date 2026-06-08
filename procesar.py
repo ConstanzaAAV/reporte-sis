@@ -13,6 +13,7 @@ Reglas de negocio:
 """
 import re
 import io
+import gc
 import calendar
 from collections import defaultdict, Counter
 
@@ -117,8 +118,11 @@ def extraer_eventos(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
         for pno, page in enumerate(pdf.pages, 1):
             words = page.extract_words()
+            page.flush_cache()          # liberar memoria (clave para PDFs grandes)
             for w in words:
                 w["page"] = pno
+            if pno % 50 == 0:
+                gc.collect()
             name = _extract_name(words)
             hdr = [w for w in words if w["text"] in ("Descripción", "Técnico") and w["top"] > 250]
             if not hdr:
